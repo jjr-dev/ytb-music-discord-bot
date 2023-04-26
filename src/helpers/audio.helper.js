@@ -1,5 +1,6 @@
 let audioPlayers = [];
 
+const { userMention } = require("discord.js");
 const {
 	joinVoiceChannel,
 	createAudioPlayer,
@@ -28,6 +29,11 @@ exports.createEmbedPlayer = (data) => {
 			{
 				name: "Views",
 				value: `${video.views}`,
+				inline: true
+			},
+			{
+				name: "Requested by",
+				value: userMention(video.requester),
 				inline: true
 			},
 			{
