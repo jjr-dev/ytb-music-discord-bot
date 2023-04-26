@@ -9,10 +9,42 @@ const {
 	AudioPlayerStatus,
 	NoSubscriberBehavior
 } = require("@discordjs/voice");
+
+const url = require("url");
+const querystring = require("querystring");
+
 const ytdl = require("ytdl-core-discord");
 const ytSearch = require("yt-search");
 
 const EmbedBuilderHelp = require("./embedbuilder.helper");
+
+exports.createUrlByVideoId = (id) => {
+	return `https://youtu.be/${id}`;
+};
+
+exports.getVideoOrPlaylistIdFromUrl = (ytbUrl) => {
+	const parsedUrl = url.parse(ytbUrl);
+	if (!parsedUrl.hostname) return false;
+
+	const queryParams = querystring.parse(parsedUrl.query);
+
+	let hostname = parsedUrl.hostname;
+	hostname = hostname.split(".");
+	if (hostname[0].includes("www")) hostname.shift();
+
+	hostname = hostname.join(".");
+
+	if (!["youtube.com", "youtu.be"].includes(hostname)) return false;
+
+	if (hostname === "youtu.be")
+		return { type: "video", id: parsedUrl.pathname.substring(1) };
+
+	if (queryParams.list) return { type: "list", id: queryParams.list };
+
+	if (queryParams.v) return { type: "video", id: queryParams.v };
+
+	return false;
+};
 
 exports.createEmbedPlayer = (data) => {
 	const { interaction, video, added } = data;
@@ -22,18 +54,13 @@ exports.createEmbedPlayer = (data) => {
 		.setImage(video.image)
 		.addFields([
 			{
-				name: "Duration",
-				value: video.duration.timestamp,
-				inline: true
-			},
-			{
-				name: "Views",
-				value: `${video.views}`,
-				inline: true
-			},
-			{
 				name: "Requested by",
 				value: userMention(video.requester),
+				inline: true
+			},
+			{
+				name: "Duration",
+				value: video.duration.timestamp,
 				inline: true
 			},
 			{
@@ -180,22 +207,38 @@ exports.playAudio = (data) => {
 
 			const guild = interaction.guild.id;
 
-			const search = await ytSearch(music).catch((err) => {
+			const yt_id = this.getVideoOrPlaylistIdFromUrl(music);
+
+			const searchQuery = {};
+			if (yt_id) {
+				searchQuery[yt_id.type === "video" ? "videoId" : "listId"] = yt_id.id;
+			} else {
+				searchQuery["query"] = music;
+			}
+
+			const search = await ytSearch(searchQuery).catch((err) => {
 				console.log(err);
 				reject(`Music ${music} not found`);
 				return;
 			});
 
-			const videos = search.videos;
-			videos.sort((a, b) => a.views > b.views);
+			let playlist;
+			let video;
+			if (!yt_id) {
+				const videos = search.videos;
+				videos.sort((a, b) => a.views > b.views);
 
-			const video = videos[0];
+				video = videos[0];
+			} else if (yt_id.type === "video") {
+				video = search;
+			} else {
+				video = search.videos[0];
+				video.url = this.createUrlByVideoId(video.videoId);
 
-			// Se der play com music e estiver tocando, adiciona na fila
-			// Se der play com music e não estiver tocando, adiciona na fila e toca
-			// Se der play sem music e estiver conectado e com fila, resume
-			// Se der play sem music e estiver sem fila, não faz nada
-			// Se der play sem music e não estiver conectado mas com fila, conecta e resume
+				search.videos.shift();
+				playlist = search.videos;
+			}
+
 			let connection = getVoiceConnection(guild);
 
 			if (!connection) {
@@ -236,6 +279,8 @@ exports.playAudio = (data) => {
 			}
 
 			if (player.state.status === AudioPlayerStatus.Playing) {
+				if (playlist) this.addPlaylistQueue({ playlist, interaction });
+
 				resolve({ added: true, video });
 				return;
 			}
@@ -252,10 +297,31 @@ exports.playAudio = (data) => {
 					console.log(err);
 					reject("Error creating player");
 				});
+
+			if (playlist) this.addPlaylistQueue({ playlist, interaction });
 		} catch (err) {
 			console.log(err);
 			reject("Intern error");
 		}
+	});
+};
+
+exports.addPlaylistQueue = (data) => {
+	const { playlist, interaction } = data;
+
+	for (const video of playlist) {
+		video.url = this.createUrlByVideoId(video.videoId);
+		this.addQueue({ guild: interaction.guild.id, video, requester: interaction.user.id });
+	}
+
+	const embed = EmbedBuilderHelp(interaction.client)
+		.setTitle(`Added songs from playlist`)
+		.setDescription(
+			`${playlist.length} songs added via playlist sent by ${interaction.user}`
+		);
+
+	interaction.channel.send({
+		embeds: [embed]
 	});
 };
 
