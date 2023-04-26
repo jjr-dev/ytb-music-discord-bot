@@ -1,6 +1,7 @@
 # 🎵 YTB Music
 
 A bot for Discord in NodeJs to play music from YouTube with a queue system and slash command support.
+![Screenshot](https://i.imgur.com/V6r8sVA.png)
 
 ## ⚙️ How to install
 
