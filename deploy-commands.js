@@ -1,5 +1,5 @@
 const { REST, Routes } = require("discord.js");
-const { discord } = require("./configs.json");
+const { token, client } = require("./configs.json");
 
 const commandsData = [];
 
@@ -9,13 +9,13 @@ for (const command of commands()) {
 	commandsData.push(command.data.toJSON());
 }
 
-const rest = new REST().setToken(discord.token);
+const rest = new REST().setToken(token);
 
 (async () => {
 	try {
 		console.log(`Starting update of ${commandsData.length} command`);
 
-		const data = await rest.put(Routes.applicationCommands(discord.client), {
+		const data = await rest.put(Routes.applicationCommands(client), {
 			body: commandsData
 		});
 

@@ -1,5 +1,5 @@
 const { Client, Collection, Events, GatewayIntentBits } = require("discord.js");
-const { discord } = require("./configs.json");
+const { token } = require("./configs.json");
 
 const client = new Client({
 	intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates]
@@ -19,4 +19,4 @@ for (const event of events()) {
 	client[event.once ? "once" : "on"](event.name, (...args) => event.execute(...args));
 }
 
-client.login(discord.token);
+client.login(token);
