@@ -439,7 +439,10 @@ exports.createResource = (data) => {
 	return new Promise((resolve, reject) => {
 		const { video } = data;
 
-		ytdl(video.url, { filter: "audioonly", quality: "highestaudio" })
+		ytdl(video.url, {
+			filter: "audioonly",
+			quality: "lowestaudio"
+		})
 			.then((stream) => {
 				const resource = createAudioResource(stream, { inlineVolume: true });
 
