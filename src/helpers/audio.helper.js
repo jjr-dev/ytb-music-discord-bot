@@ -2,18 +2,18 @@ let audioPlayers = [];
 
 const { userMention } = require("discord.js");
 const {
-	joinVoiceChannel,
 	createAudioPlayer,
 	createAudioResource,
 	getVoiceConnection,
+	joinVoiceChannel,
+	NoSubscriberBehavior,
 	AudioPlayerStatus,
-	NoSubscriberBehavior
 } = require("@discordjs/voice");
 
 const url = require("url");
 const querystring = require("querystring");
 
-const ytdl = require("ytdl-core-discord");
+const play = require("play-dl");
 const ytSearch = require("yt-search");
 
 const EmbedBuilderHelp = require("./embedbuilder.helper");
@@ -36,8 +36,7 @@ exports.getVideoOrPlaylistIdFromUrl = (ytbUrl) => {
 
 	if (!["youtube.com", "youtu.be"].includes(hostname)) return false;
 
-	if (hostname === "youtu.be")
-		return { type: "video", id: parsedUrl.pathname.substring(1) };
+	if (hostname === "youtu.be") return { type: "video", id: parsedUrl.pathname.substring(1) };
 
 	if (queryParams.list) return { type: "list", id: queryParams.list };
 
@@ -56,17 +55,17 @@ exports.createEmbedPlayer = (data) => {
 			{
 				name: "Requested by",
 				value: userMention(video.requester),
-				inline: true
+				inline: true,
 			},
 			{
 				name: "Duration",
 				value: video.duration.timestamp,
-				inline: true
+				inline: true,
 			},
 			{
 				name: "URL",
-				value: video.url
-			}
+				value: video.url,
+			},
 		]);
 
 	return embed;
@@ -121,7 +120,7 @@ exports.eventsPlayer = (data) => {
 			.setDescription("The connection to the music has been lost");
 
 		interaction.channel.send({
-			embeds: [embed]
+			embeds: [embed],
 		});
 	});
 };
@@ -142,7 +141,7 @@ exports.removeAndPlay = (data) => {
 			const embed = this.createEmbedPlayer({ video, added: false, interaction });
 
 			interaction.channel.send({
-				embeds: [embed]
+				embeds: [embed],
 			});
 
 			return true;
@@ -245,7 +244,7 @@ exports.playAudio = (data) => {
 				connection = await this.createConnection({
 					channel: voice.id,
 					guild: guild,
-					adapter: interaction.guild.voiceAdapterCreator
+					adapter: interaction.guild.voiceAdapterCreator,
 				}).catch((err) => {
 					console.log(err);
 					reject("Error creating connection");
@@ -267,7 +266,7 @@ exports.playAudio = (data) => {
 				this.savePlayer({
 					guild,
 					player,
-					interaction
+					interaction,
 				});
 
 				this.eventsPlayer({ guild });
@@ -316,12 +315,10 @@ exports.addPlaylistQueue = (data) => {
 
 	const embed = EmbedBuilderHelp(interaction.client)
 		.setTitle(`Added songs from playlist`)
-		.setDescription(
-			`${playlist.length} songs added via playlist sent by ${interaction.user}`
-		);
+		.setDescription(`${playlist.length} songs added via playlist sent by ${interaction.user}`);
 
 	interaction.channel.send({
-		embeds: [embed]
+		embeds: [embed],
 	});
 };
 
@@ -346,7 +343,6 @@ exports.nextQueuePlayer = (guild) => {
 		});
 
 		this.saveResource({ guild, resource });
-
 		this.playResource({ player, resource, connection });
 
 		resolve({ video });
@@ -399,7 +395,7 @@ exports.createConnection = (data) => {
 			const connection = joinVoiceChannel({
 				channelId: channel,
 				guildId: guild,
-				adapterCreator: adapter
+				adapterCreator: adapter,
 			});
 
 			resolve(connection);
@@ -427,8 +423,8 @@ exports.createPlayer = () => {
 	return new Promise((resolve) => {
 		const player = createAudioPlayer({
 			behaviors: {
-				noSubscriber: NoSubscriberBehavior.Pause
-			}
+				noSubscriber: NoSubscriberBehavior.Pause,
+			},
 		});
 
 		resolve(player);
@@ -439,18 +435,16 @@ exports.createResource = (data) => {
 	return new Promise((resolve, reject) => {
 		const { video } = data;
 
-		ytdl(video.url, {
-			filter: "audioonly",
-			quality: "lowestaudio"
-		})
+		play.stream(video.url)
 			.then((stream) => {
-				const resource = createAudioResource(stream, { inlineVolume: true });
+				const resource = createAudioResource(stream.stream, {
+					inputType: stream.type,
+					inlineVolume: true,
+				});
 
 				resolve(resource);
 			})
-			.catch((err) => {
-				reject(err);
-			});
+			.catch((err) => reject(err));
 	});
 };
 
@@ -480,11 +474,10 @@ exports.setVolume = (data) => {
 
 			const volumes = {
 				from: resource.volume.volume,
-				to: volume
+				to: volume,
 			};
 
-			if (volumes.from === volumes.to)
-				return reject(`Volume already defined in ${volumes.to}`);
+			if (volumes.from === volumes.to) return reject(`Volume already defined in ${volumes.to}`);
 
 			resource.volume.setVolume(volume);
 
